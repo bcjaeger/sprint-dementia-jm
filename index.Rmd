@@ -1,0 +1,351 @@
+---
+title: "Systolic Blood Pressure Levels and Probable Dementia"
+subtitle: "Secondary Analysis of a Randomized Clinical Trial"
+author: "Byron C Jaeger, PhD; Sarah A. Gaussoin, MS; David M. Reboussin, PhD; Stephen R. Rapp, PhD; Bonnie C. Sachs, PhD and Jeff D. Williamson, MD"
+date: "July 20, 2023"
+output:
+  xaringan::moon_reader:
+    css: [default]
+    lib_dir: libs
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      ratio: '16:9'
+      countIncrementalSlides: false
+---
+class: center, middle
+
+```{css, echo=FALSE}
+
+.remark-slide-content {
+  font-size: 25px;
+}
+
+```
+
+
+```{r xaringanExtra-clipboard, echo=FALSE}
+htmltools::tagList(
+  xaringanExtra::use_clipboard(
+    button_text = "<i class=\"fa fa-clipboard\"></i>",
+    success_text = "<i class=\"fa fa-check\" style=\"color: #90BE6D\"></i>",
+  ),
+  rmarkdown::html_dependency_font_awesome()
+)
+```
+
+```{r setup, include=FALSE}
+
+options(htmltools.dir.version = FALSE)
+
+knitr::opts_chunk$set(
+  echo=FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width=16*0.65, 
+  fig.height=9*0.65, 
+  dpi=600,
+  cache = TRUE
+)
+
+source("packages.R")
+
+tar_load(c(sprint, fig_forest))
+
+
+```
+
+# Hello!
+
+## Slides are here: https://www.byronjaeger.com/talk/
+
+## I have no conflicts to disclose.
+<!-- Dont say incident, say adjudicated instead -->
+
+---
+layout: true
+
+# Background
+
+---
+
+- Few treatments reduce the risk of dementia and cognitive impairment.
+
+- Meta-analyses show a relationship between systolic blood pressure (SBP) and risk for dementia and cognitive impairment, e.g., mid-life hypertension and later onset of dementia.<sup>1, 2</sup>
+
+.footnote[
+<sup>1</sup>Ou, Ya-Nan, et al. "Blood pressure and risks of cognitive impairment and dementia: a systematic review and meta-analysis of 209 prospective studies." Hypertension 76.1 (2020): 217-225.<br><sup>2</sup> Sáiz-Vazquez, Olalla, et al. "Blood pressure and Alzheimer's disease: A review of meta-analysis." Frontiers in Neurology 13 (2023): 1065335.
+]
+
+---
+
+Some remaining gaps: 
+    
+- Does lowering SBP associate with reduced risk?
+
+- Does the relationship vary across subgroups?
+
+We consider these questions using data from SPRINT (Systolic Blood Pressure Intervention Trial).
+
+---
+layout: true
+
+# SPRINT
+
+---
+
+A randomized clinical trial (n = 9,361)
+
+- Intervention group targeted SBP < 120 mm Hg (intensive BP control).
+
+- Control group targeted SBP < 140 mm Hg (standard BP control).
+
+---
+
+Adjudicated outcomes included
+
+- Cardiovascular disease
+
+- Probable dementia
+
+- Mild cognitive impairment
+
+---
+
+The trial stopped early due to benefit on cardiovascular outcomes.
+
+- $\Rightarrow$ lower precision for analysis of cognitive outcomes than the investigators planned for. 
+
+- Hazard ratio for probable dementia comparing intensive vs standard BP control was 
+
+ <p><center>0.83 (95% CI 0.67, 1.04)<sup>1</sup></center></p>
+
+
+- In other words, "No effect" 🤦
+
+.footnote[
+<sup>1</sup> Effect of Intensive vs Standard Blood Pressure Control on Probable Dementia: A Randomized Clinical Trial. JAMA. 2019 Feb 12;321(6):553-561. doi: 10.1001/jama.2018.21442. 
+]
+
+---
+layout: false
+
+# Hypothesis
+
+The relationship between SBP and cognitive outcomes can be detected in SPRINT using **joint longitudinal & survival models**.
+
+- Use repeated SBP measurements over time instead of randomization. 
+
+- $\Rightarrow$ Our results show association, not causation.
+
+---
+layout: false
+class: center, middle
+
+## Why use SBP over time instead of randomization?
+
+---
+
+## Mean SBP by treatment group
+
+```{r, fig.height=5}
+
+sprint_pd <- sprint$pd$long %>% 
+ mutate(sbpavg = sbpavg * 10) %>% 
+ group_by(pid) %>% 
+ mutate(mean_sbp_over_time = mean(sbpavg),
+        intensive = factor(intensive,
+                           levels = c(0,1),
+                           labels = c("Standard",
+                                      "Intensive"))) %>% 
+ filter(max(stop)>4.5) %>% 
+ filter(stop <= 4.5)
+
+make_p1 <- function(data){
+ ggplot(data) + 
+ aes(x = stop, 
+     y = sbpavg, 
+     color = intensive) + 
+ geom_smooth() +
+ labs(x = 'Years since randomization',
+      y = 'Systolic blood pressure, mm Hg',
+      color = 'Treatment\ngroup') +
+ theme_bw() +
+ theme(panel.grid = element_blank()) + 
+ scale_y_continuous(limits = c(75, 200), 
+                    breaks = seq(80, 200, by=20)) + 
+  scale_x_continuous(limits = c(0, 5),
+                     breaks = c(1:5))
+}
+
+p1 <- make_p1(sprint_pd)
+
+p1
+
+```
+
+---
+
+## Individuals w/high SBP in the intensive group
+
+```{r, fig.height=5}
+
+top_3 <- sprint_pd %>% 
+ filter(intensive == "Intensive") %>% 
+ arrange(desc(mean_sbp_over_time)) %>% 
+ filter(pid %in% unique(.$pid)[1:3])
+
+p1 + 
+ geom_point(data = top_3) + 
+ geom_line(data = top_3, aes(group = pid))
+
+
+```
+
+---
+
+## Individuals w/low SBP in the standard group
+
+```{r, fig.height=5}
+
+btm_3 <- sprint_pd %>% 
+ filter(intensive == "Standard") %>% 
+ arrange(mean_sbp_over_time) %>% 
+ filter(pid %in% unique(.$pid)[1:3])
+
+p1 + 
+ geom_point(data = btm_3) + 
+ geom_line(data = btm_3, aes(group = pid))
+```
+
+
+
+---
+layout: true
+# Methods
+
+---
+
+*Primary exposure*
+
+- SBP, accounting for changes over time
+
+*Adjudicated cognitive outcomes*
+
+- Probable dementia
+
+- Mild cognitive impairment
+
+*Subgroup analysis* 
+
+- Test for heterogeneity in association of SBP with cognitive outcomes in subgroups defined by age, race, sex, and education.
+
+---
+
+*Longitudinal model for SBP*:
+
+- Random intercepts and polynomial slopes for SBP for each study participant.
+
+- Fixed effects for age, treatment group, time, and treatment by time interaction.
+
+```{r, eval = FALSE, echo = TRUE}
+fit_sbp <- lme(
+ fixed = SBP ~ age + poly(time, 2) * treatment_group,
+ random = ~ 1 + poly(time, 2) | study_participant,
+ data = sprint
+)
+```
+
+
+---
+
+*Survival model for cognitive outcomes*:
+
+- Cox proportional hazards with multi-variable adjustment for age group, sex, race, and education at SPRINT baseline exam.
+
+```{r, eval = FALSE, echo=TRUE}
+
+fit_surv <- coxph(
+ formula = Surv(time, status) ~ age + sex + race + education,
+ data = sprint
+)
+
+```
+
+---
+
+*Joint longitudinal & survival model* 
+
+- fitted using the `JMBayes2` R package with default priors: 
+
+```{r, eval = FALSE, echo=TRUE}
+
+fit_joint <- jm(Surv_object = fit_surv,
+                Mixed_objects = fit_sbp,
+                time_var = "time",
+                id_var = 'study_participant')
+
+```
+
+
+---
+layout: false
+class: center, middle
+
+# Results
+
+---
+
+```{r}
+fig_forest$pd
+```
+
+.footnote[
+SBP = systolic blood pressure, CI = confidence interval
+]
+
+
+---
+
+```{r}
+fig_forest$mci
+```
+
+.footnote[
+SBP = systolic blood pressure, CI = confidence interval
+]
+
+---
+# Discussion 
+
+SPRINT found the hazard for probable dementia targeting SBP < 120 vs. < 140 mm Hg was 0.83 (95% CI 0.67, 1.04). 
+
+- We found the hazard ratio per 10 mm Hg lower SBP was 0.83 (95% CI 0.74, 0.93) for probable dementia.
+
+---
+# Discussion
+
+Meta-analyses have found SBP is associated with dementia, but the association may vary across subgroups.
+
+- We found no evidence of heterogeneous association for probable dementia
+
+- For mild cognitive impairment we found the association of SBP varied among subgroups defined by education.
+
+---
+
+# Conclusions
+
+1. Lower SBP is associated with decreased risk of both probable dementia and mild cognitive impairment.
+
+2. Joint longitudinal & survival models are useful, accessible, and under utilized tools for studies with longitudinal interventions and event-based outcomes. 
+
+---
+
+# Acknowledgments
+
+**Funding/Support**: The Systolic Blood Pressure Intervention Trial was funded by the National Institutes of Health (including the National Heart, Lung, and Blood Institute, the National Institute of Diabetes and Digestive and Kidney Diseases, the National Institute on Aging, and the National Institute of Neurological Disorders and Stroke). Additional support also provided by R01AG055606, the Wake Forest Claude Pepper Center (P30AG021332), and the Alzheimer’s Association.
+
+**Role of the Funder/Sponsor**: The National Institutes of Health and the US Department of Veterans Affairs had a role in the design and conduct of the study and collection, management, analysis, and interpretation of the data. No funders had a role in the preparation, review, or approval of the manuscript or in the decision to submit the manuscript for publication.
+
+**Disclaimer**: The content is solely the responsibility of the authors and does not necessarily represent the official views of the National Institutes of Health, the US Department of Veterans Affairs, or the US government. This article was not reviewed by the SPRINT Publications and Presentations Committee.
+
